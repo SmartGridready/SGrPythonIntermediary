@@ -29,6 +29,11 @@ def getval(self, fp_name, dp_name):
     value = jmespath.search(query, json.loads(response))
     return value
 ```
+- import requests in sgr/sgr_library/restapi_client_async.py
+```
+import requests
+```
+- add `requests` to sgr/requirements.txt
 - build the docker image:
 ```
 docker build -t sgr-intermediary .
