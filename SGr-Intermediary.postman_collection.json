@@ -1,0 +1,67 @@
+{
+	"info": {
+		"_postman_id": "2e73e12c-bcf6-403a-bbff-c1b685bdb002",
+		"name": "SGr-Intermediary",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "test",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Initialize",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "xml",
+							"type": "file",
+							"src": "/Users/marcolehmann/Development/SGrPython/xml_files/SGr_04_XXXX_LEHMANN_SmartChargeControllerV0.2.0.xml"
+						},
+						{
+							"key": "config",
+							"type": "file",
+							"src": "/Users/marcolehmann/Development/SGrPython/lehmann.ini"
+						}
+					],
+					"options": {
+						"raw": {
+							"language": "xml"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/initialize",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"initialize"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
