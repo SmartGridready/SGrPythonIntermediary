@@ -1,13 +1,5 @@
-#from sgr.sgr_library.generic_interface import GenericInterface
-
-#import asyncio
-#from flask import Flask, request, jsonify
 from sgr.sgr_library.generic_interface import GenericInterface
-#from flask_swagger_ui import get_swaggerui_blueprint
-#from flask import jsonify
 import asyncio
-#app = Flask(__name__)
-
 from fastapi import FastAPI, File, UploadFile, HTTPException, status
 from pydantic import BaseModel, Field
 import uvicorn
@@ -15,8 +7,6 @@ import os
 from typing import Optional, List, Dict
 
 app = FastAPI()
-
-
 
 SWAGGER_URL = '/api/docs'  # URL for exposing Swagger UI (without trailing '/')
 API_URL = '/static/swapper.json'
@@ -39,12 +29,9 @@ class InitializationResponse(BaseModel):
     status: str
     instance_id: Optional[str] = None
 
-instance_counter = 1  # initialize your instance counter
-interfaces = {}  # initialize your interfaces dict
+instance_counter = 1 
+interfaces = {} 
 
-async def authenticate(instance_id: str, xml_file: UploadFile = File(...), ini_file: UploadFile = File(...)) -> InitializationResponse:
-    # Your authentication logic here, consider also moving file saving logic here if it's related to authentication
-    ...
 
 @app.post("/initialize", response_model=InitializationResponse)
 async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
@@ -60,7 +47,6 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
 
     instance_id = str(instance_counter)
 
-    # Assuming you need to save the files, adapt as needed
     ini_path = f"{instance_id}.ini"
     xml_path = f"{instance_id}.xml"
 
@@ -70,9 +56,6 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
     
     with open(xml_path, "wb") as buffer:
         buffer.write(await xml.read())
-    
-    # Assuming an authenticate method in your interface, that possibly checks the files and initializes something
-    # Since FastAPI is async, we can await authenticate directly if it's defined with async def
     
     interfaces[f"{instance_id}"] = GenericInterface(xml_path, ini_path)
 
@@ -84,53 +67,39 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
 
     instance_counter += 1
     return InitializationResponse(status="success", instance_id=instance_id)
-    #return response_model
 
 
 
-class Datapoint(BaseModel):
-    instance_id: str = Field(..., example="1")
-    fpname: str = Field(..., example="example_fpname")
-    dpname: str = Field(..., example="example_dpname")
-
-class InstanceData(BaseModel):
-    instance_id: int = Field(..., example=10)
-    fpname: str = Field(..., example="ActivePowerAC")
-    dpname: str = Field(..., example="ActivePowerACtot")
-    val: float = Field(..., example=12)
+Datapoint = Dict[str, Dict[str, List[str]]]
 
 class ResponseData(BaseModel):
     status: str = Field(..., example="success")
-    data: List[InstanceData]
+    data: Dict[str, Dict[str, Dict[str, float]]]
 
 @app.post("/get", response_model=ResponseData)
-async def get(datapoints: List[Datapoint]):
-    # prepare response data
-    result_dict = []
+async def get(data: Datapoint):
+    result_dict = {}
 
-    for dp in datapoints:
-        instance_id = dp.instance_id
-        fpname = dp.fpname
-        dpname = dp.dpname
-        
-        # check if all data is provided
-        if instance_id and fpname and dpname:
+    err_string = ""
 
-            #result_dict[instance_id][fpname][dpname] = await interfaces[f'{instance_id}'].getval(fpname, dpname)
-            result_dict.append({
-                "instance_id": instance_id,
-                "fpname": fpname,
-                "dpname": dpname,
-                "val": await interfaces[instance_id].getval(fpname, dpname)
-            })
+    for instance_id, fp_data in data.items():
+        if instance_id not in result_dict:
+            result_dict[instance_id] = {}
 
-    print(result_dict)
+        for fpname, dpnames in fp_data.items():
+            if fpname not in result_dict[instance_id]:
+                result_dict[instance_id][fpname] = {}
 
-    response_data = {
-        'status': 'success',
-        'data': result_dict
-    }
-    return response_data
+            for dpname in dpnames:
+                # Your logic to retrieve the value for fpname and dpname
+                try:
+                  val = await interfaces[instance_id].getval(fpname, dpname)
+                  result_dict[instance_id][fpname][dpname] = val
+                except Exception as e:
+                  err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
+
+    status = err_string if err_string else 'success'
+    return {'status': status, 'data': result_dict}
 
 
 if __name__ == "__main__":
