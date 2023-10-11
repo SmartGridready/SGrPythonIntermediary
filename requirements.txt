@@ -1,4 +1,5 @@
-Flask==2.3.2
 asgiref
-flask-swagger-ui
 requests
+fastapi
+python-multipart
+uvicorn
