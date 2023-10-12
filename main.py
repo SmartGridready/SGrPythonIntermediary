@@ -4,36 +4,22 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, status
 from pydantic import BaseModel, Field
 import uvicorn
 import os
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
-app = FastAPI()
+app = FastAPI(
+    title="SmartGridready Intermediary API",
+    description="This API is used to communicate with the SmartGridready Generic Interface.",
+    version="1.0.0",
+)
 
-SWAGGER_URL = '/api/docs'  # URL for exposing Swagger UI (without trailing '/')
-API_URL = '/static/swapper.json'
-
-# # Call factory function to create our blueprint
-# swaggerui_blueprint = get_swaggerui_blueprint(
-#     SWAGGER_URL,  # Swagger UI static files will be mapped to '{SWAGGER_URL}/dist/'
-#     API_URL,
-#     config={  # Swagger UI config overrides
-#         'app_name': "Test application"
-#     },
-# )
-
-# app.register_blueprint(swaggerui_blueprint)
-@app.route("/")
-def hello_world():
-    return "Hello, World!"
+instance_counter = 1 
+interfaces = {} 
 
 class InitializationResponse(BaseModel):
     status: str
     instance_id: Optional[str] = None
 
-instance_counter = 1 
-interfaces = {} 
-
-
-@app.post("/initialize", response_model=InitializationResponse)
+@app.post("/instances", response_model=InitializationResponse, tags=["instances"], summary="Initialize a new instance of the Generic Interface.")
 async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
     global instance_counter, interfaces
 
@@ -56,18 +42,37 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
     
     with open(xml_path, "wb") as buffer:
         buffer.write(await xml.read())
+
+    if f"{instance_id}" not in interfaces:
+        interfaces[f"{instance_id}"] = {}
     
-    interfaces[f"{instance_id}"] = GenericInterface(xml_path, ini_path)
+    interfaces[f"{instance_id}"]["generic_interface"] = GenericInterface(xml_path, ini_path)
+    interfaces[f"{instance_id}"]["xml"] = xml.filename
+    interfaces[f"{instance_id}"]["ini"] = ini.filename
 
     # Clean up files
     os.remove(ini_path)
     os.remove(xml_path)
 
-    await interfaces[f"{instance_id}"].authenticate()
+    await interfaces[f"{instance_id}"]["generic_interface"].authenticate()
 
     instance_counter += 1
     return InitializationResponse(status="success", instance_id=instance_id)
 
+
+# get initialized instances
+@app.get("/instances", response_model=Dict[str, Any], tags=["instances"], summary="get initialized instances")
+async def get_instances():
+  # return only the instance ids, xml and ini paths
+  result = {
+      key: {
+          'instance_id': key,
+          'xml': value['xml'],
+          'ini': value['ini']
+      }
+      for key, value in interfaces.items()
+  }
+  return result
 
 
 Datapoint = Dict[str, Dict[str, List[str]]]
@@ -76,8 +81,55 @@ class ResponseData(BaseModel):
     status: str = Field(..., example="success")
     data: Dict[str, Dict[str, Dict[str, float]]]
 
-@app.post("/get", response_model=ResponseData)
+@app.post("/get", response_model=ResponseData, tags=["Generic Interface"], summary="Get values from the Generic Interface.")
 async def get(data: Datapoint):
+    """
+    ## Retrieve datapoint of specific functional profile 
+
+    ### Request Body
+
+    The request body should be a JSON object where each key represents an identifier and its associated value is another JSON object detailing metrics of interest.
+
+    #### Format:
+
+    ```json
+    {
+        "<instance_id>": {
+            "<fpname>": [
+                "<dpname>",
+                "<dpname>",
+                ...
+            ]
+        },
+        "<instance_id>": {
+            "<fpname>": [
+                "<dpname>",
+                "<dpname>",
+                ...
+            ]
+        },
+        ...
+    }
+    ```
+
+    #### Example:
+
+    ```json
+    {
+        "1": {
+            "ActivePowerAC": ["ActivePowerACtot", "ActivePowerACL1"]
+        },
+        "2": {
+            "ActivePowerAC": ["ActivePowerACtot"]
+        }
+    }
+    ```
+
+    ### Response
+
+    The response format and values will depend on the application's implementation and the data being requested. However, it's expected that the API will return relevant data or status messages based on the identifiers and metrics provided.
+
+    """
     result_dict = {}
 
     err_string = ""
@@ -93,7 +145,7 @@ async def get(data: Datapoint):
             for dpname in dpnames:
                 # Your logic to retrieve the value for fpname and dpname
                 try:
-                  val = await interfaces[instance_id].getval(fpname, dpname)
+                  val = await interfaces[instance_id]["generic_interface"].getval(fpname, dpname)
                   result_dict[instance_id][fpname][dpname] = val
                 except Exception as e:
                   err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
