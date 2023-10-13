@@ -5,7 +5,6 @@ WORKDIR /app
 #################################################################################
 # as long as the sgr_library is not published as pip module:
 COPY sgr sgr
-COPY static /app/static
 RUN pip install -r sgr/requirements.txt
 RUN pip install xsdata[cli]
 
