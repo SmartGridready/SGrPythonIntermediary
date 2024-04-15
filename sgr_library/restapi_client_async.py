@@ -139,16 +139,20 @@ class SgrRestInterface(BaseSGrInterface):
             async with self.session.post(url=self.authentication_url, headers=self.headers, data=self.data) as res:
                 if 200 <= res.status < 300:
                     logging.info(f"Authentication successful: Status {res.status}")
+                    print(f"Authentication successful: Status {res.status}")
                     try:
                         response = await res.text()
                         token = jmespath.search('accessToken', json.loads(response))
                         if token:
                             self.token = str(token)
                             logging.info("Token retrieved successfully")
+                            print("Token retrieved successfully")
                         else:
                             logging.warning("Token not found in the response")
+                            print("Token not found in the response")
                     except json.JSONDecodeError:
                         logging.error("Failed to decode JSON response")
+                        print("Failed to decode JSON response")
                     except jmespath.exceptions.JMESPathError:
                         logging.error("Failed to search JSON data using JMESPath")
                 else:

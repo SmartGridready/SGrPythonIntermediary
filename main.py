@@ -5,7 +5,7 @@ import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel, Field
 
-from sgr.sgr_library.sgr_device import SGrDevice
+from sgr_library import SGrDevice
 
 app = FastAPI(
     title="SmartGridready Intermediary API",
@@ -30,9 +30,7 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
     ini_file_ext = os.path.splitext(ini.filename)[-1].lower()
     xml_file_ext = os.path.splitext(xml.filename)[-1].lower()
 
-    print(ini_file_ext)
-
-    if ini_file_ext not in ['.ini'] or xml_file_ext not in ['.xml']:
+    if ini_file_ext != '.ini' or xml_file_ext != '.xml':
         raise HTTPException(status_code=400, detail="Incorrect file types uploaded. Expecting .ini and .xml.")
 
     instance_id = str(instance_counter)
@@ -40,10 +38,11 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
     ini_path = f"{instance_id}.ini"
     xml_path = f"{instance_id}.xml"
 
-    # Async file saving
+    # Saving the INI file
     with open(ini_path, "wb") as buffer:
         buffer.write(await ini.read())
 
+    # Saving the XML file
     with open(xml_path, "wb") as buffer:
         buffer.write(await xml.read())
 
@@ -51,14 +50,27 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
         interfaces[f"{instance_id}"] = {}
 
     interfaces[f"{instance_id}"]["generic_interface"] = SGrDevice()
-    interfaces[f"{instance_id}"]["xml"] = xml.filename
-    interfaces[f"{instance_id}"]["ini"] = ini.filename
+    interfaces[f"{instance_id}"]["xml"] = xml_path
+    interfaces[f"{instance_id}"]["ini"] = ini_path
 
-    # Clean up files
+    # Processing the XML file
+    with open(xml_path, "r") as buffer:
+        xml_content = buffer.read()
+        print("XML Content:", xml_content)
+        # Process XML content here
+        interfaces[f"{instance_id}"]["generic_interface"].update_xml_spec(xml_content)
+
+    # Processing the INI file
+    with open(ini_path, "r") as buffer:
+        ini_content = buffer.read()
+        print("INI Content:", ini_content)
+        interfaces[f"{instance_id}"]["generic_interface"].update_config(ini_content)
+        # Process INI content here
+
+    # Cleanup: Removing temporary files
     os.remove(ini_path)
     os.remove(xml_path)
 
-    interfaces[f"{instance_id}"]["generic_interface"].update_xml_spec(xml_path).update_config(ini_path).connect()
     await interfaces[f"{instance_id}"]["generic_interface"].connect()
 
     instance_counter += 1
