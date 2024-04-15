@@ -5,7 +5,7 @@ import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel, Field
 
-from sgr_library import SGrDevice
+from sgr.sgr_library.sgr_device import SGrDevice
 
 app = FastAPI(
     title="SmartGridready Intermediary API",
@@ -165,12 +165,21 @@ async def get(data: Datapoint):
             for dpname in dpnames:
                 # Your logic to retrieve the value for fpname and dpname
                 try:
-                    val = await interfaces[instance_id]["generic_interface"].getval(fpname, dpname)
+                    # val = await interfaces[instance_id]["generic_interface"].getval(fpname, dpname)
+                    print(f"Getting value for {fpname}.{dpname}")
+                    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
+                    print(f"Function Profile: {fp.read()}")
+                    data_point = fp.get_data_point(dpname)
+                    val = await data_point.read()
+                    print(f"Data Point: {val}")
                     result_dict[instance_id][fpname][dpname] = val
+                    print(f"Value: {val}")
                 except Exception as e:
                     err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
 
     status = err_string if err_string else 'success'
+    print("Result Dict:", result_dict)
+
     return {'status': status, 'data': result_dict}
 
 
