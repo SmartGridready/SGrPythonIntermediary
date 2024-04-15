@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any
 
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from sgr.sgr_library.sgr_device import SGrDevice
@@ -16,6 +17,19 @@ app = FastAPI(
 instance_counter = 1
 interfaces = {}
 
+# Mount Swagger UI at /docs
+app.mount("/docs", StaticFiles(directory="swagger"), name="docs")
+
+
+# Additional endpoint for serving OpenAPI schema
+@app.get("/openapi.json", include_in_schema=False)
+async def get_openapi_json():
+    return app.openapi()
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)
+
 
 class InitializationResponse(BaseModel):
     status: str
@@ -25,6 +39,44 @@ class InitializationResponse(BaseModel):
 @app.post("/instances", response_model=InitializationResponse, tags=["instances"],
           summary="Initialize a new instance of the Generic Interface.")
 async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
+    """
+    ## Initialize a new instance of the Generic Interface
+    
+    ### Request Body
+    
+    The request body should be a form-data object containing two files: an INI file and an XML file.
+    
+    #### Format:
+    
+    ```json
+    {
+        "xml": "<xml_file>",
+        "ini": "<ini_file>"
+    }
+    ```
+    
+    #### Response:
+    
+    The response will be a JSON object containing the status of the initialization and the instance id.
+    
+    #### Format:
+    
+    ```json
+    {
+        "status": "<status>",
+        "instance_id": "<instance_id>"
+    }
+    ```
+    
+    #### Example:
+    
+    ```json
+    {
+        "status": "success",
+        "instance_id": "1"
+    }
+    ```
+    """
     global instance_counter, interfaces
 
     ini_file_ext = os.path.splitext(ini.filename)[-1].lower()
@@ -80,6 +132,53 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
 # get initialized instances
 @app.get("/instances", response_model=Dict[str, Any], tags=["instances"], summary="get initialized instances")
 async def get_instances():
+    """
+    ## Retrieve initialized instances
+    
+    ### Response
+    
+    The response will be a JSON object where each key represents an instance id and its associated value is another JSON object detailing the instance's XML and INI paths.
+    
+    #### Format:
+    
+    ```json
+    
+    {
+        "<instance_id>": {
+            "instance_id": "<instance_id>",
+            "xml": "<xml_path>",
+            "ini": "<ini_path>"
+        },
+        "<instance_id>": {
+            "instance_id": "<instance_id>",
+            "xml": "<xml_path>",
+            "ini": "<ini_path>"
+        },
+        ...
+    }
+    
+    ```
+    
+    #### Example:
+    
+    ```json
+        
+        {
+            "1": {
+                "instance_id": "1",
+                "xml": "1.xml",
+                "ini": "1.ini"
+            },
+            "2": {
+                "instance_id": "2",
+                "xml": "2.xml",
+                "ini": "2.ini"
+            }
+        }
+        
+        ```
+        
+    """
     # return only the instance ids, xml and ini paths
     result = {
         key: {
@@ -165,21 +264,14 @@ async def get(data: Datapoint):
             for dpname in dpnames:
                 # Your logic to retrieve the value for fpname and dpname
                 try:
-                    # val = await interfaces[instance_id]["generic_interface"].getval(fpname, dpname)
-                    print(f"Getting value for {fpname}.{dpname}")
                     fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
-                    print(f"Function Profile: {fp.read()}")
                     data_point = fp.get_data_point(dpname)
                     val = await data_point.read()
-                    print(f"Data Point: {val}")
                     result_dict[instance_id][fpname][dpname] = val
-                    print(f"Value: {val}")
                 except Exception as e:
                     err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
 
     status = err_string if err_string else 'success'
-    print("Result Dict:", result_dict)
-
     return {'status': status, 'data': result_dict}
 
 
