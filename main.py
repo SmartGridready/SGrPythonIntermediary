@@ -2,7 +2,7 @@ import os
 from typing import Optional, Dict, Any, List
 
 import uvicorn
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -229,9 +229,40 @@ class ResponseData(BaseModel):
     data: Dict[str, Dict[str, Dict[str, float]]]
 
 
+DataPayload = Dict[str, Dict[str, List[str]]]
+
+
+async def process_data(data, data_point_handler):
+    result_dict = {}
+    err_string = ""
+
+    for instance_id, fp_data in data.items():
+        if instance_id not in result_dict:
+            result_dict[instance_id] = {}
+
+        for fpname, dpnames in fp_data.items():
+            if fpname not in result_dict[instance_id]:
+                result_dict[instance_id][fpname] = {}
+
+            for dpname in dpnames:
+                try:
+                    val = await data_point_handler(instance_id, fpname, dpname)
+                    result_dict[instance_id][fpname][dpname] = val
+                except Exception as e:
+                    err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
+
+    return result_dict, err_string
+
+
+async def get_data_point_value(instance_id, fpname, dpname):
+    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
+    data_point = fp.get_data_point(dpname)
+    return await data_point.read()
+
+
 @app.post("/get", response_model=ResponseData, tags=["Generic Interface"],
           summary="Get values from the Generic Interface.")
-async def get_values(data: Dict[str, Dict[str, List[str]]]):
+async def get_values(data: DataPayload):
     """
     ## Retrieve datapoint of specific functional profile 
 
@@ -279,35 +310,27 @@ async def get_values(data: Dict[str, Dict[str, List[str]]]):
     The response format and values will depend on the application's implementation and the data being requested. However, it's expected that the API will return relevant data or status messages based on the identifiers and metrics provided.
 
     """
-    result_dict = {}
-
-    err_string = ""
-
-    for instance_id, fp_data in data.items():
-        if instance_id not in result_dict:
-            result_dict[instance_id] = {}
-
-        for fpname, dpnames in fp_data.items():
-            if fpname not in result_dict[instance_id]:
-                result_dict[instance_id][fpname] = {}
-
-            for dpname in dpnames:
-                # Your logic to retrieve the value for fpname and dpname
-                try:
-                    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
-                    data_point = fp.get_data_point(dpname)
-                    val = await data_point.read()
-                    result_dict[instance_id][fpname][dpname] = val
-                except Exception as e:
-                    err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
-
+    result_dict, err_string = await process_data(data, get_data_point_value)
     status = err_string if err_string else 'success'
     return {'status': status, 'data': result_dict}
 
 
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        # json data
+        data = await websocket.receive_json()
+        result_dict, err_string = await process_data(data, get_data_point_value)
+        await websocket.send_json({'status': err_string if err_string else 'success', 'data': result_dict})
+
+
+SetDataPayload = Dict[str, Dict[str, Dict[str, float]]]
+
+
 @app.post("/set", response_model=ResponseData, tags=["Generic Interface"],
           summary="Set values in the Generic Interface.")
-async def set_values(data: Dict[str, Dict[str, Dict[str, float]]]):
+async def set_values(data: SetDataPayload):
     """
     ## Set values in the Generic Interface
 
