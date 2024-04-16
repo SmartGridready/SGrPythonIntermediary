@@ -194,6 +194,39 @@ async def get_instances():
 Datapoint = Dict[str, Dict[str, List[str]]]
 
 
+@app.delete("/instances/{instance_id}", tags=["instances"], summary="Delete an instance of the Generic Interface.")
+async def delete_instance(instance_id: str):
+    """
+    ## Delete an instance of the Generic Interface
+    
+    ### Request
+    
+    The request should contain the instance id of the instance to delete.
+    
+    #### Format:
+    
+    ```json
+    {
+        "instance_id": "<instance_id>"
+    }
+    ```
+    
+    #### Example:
+    
+    ```json
+    {
+        "instance_id": "1"
+    }
+    ```
+    """
+    if instance_id not in interfaces:
+        raise HTTPException(status_code=404, detail="Instance not found.")
+
+    del interfaces[instance_id]
+
+    return {"status": "success"}
+
+
 class ResponseData(BaseModel):
     status: str = Field(..., example="success")
     data: Dict[str, Dict[str, Dict[str, float]]]
