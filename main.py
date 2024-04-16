@@ -2,11 +2,22 @@ import os
 from typing import Optional, Dict, Any, List
 
 import uvicorn
+import yaml
 from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from sgr.sgr_library.sgr_device import SGrDevice
+
+
+# Function to load YAML
+def load_yaml(yaml_file: str):
+    with open(yaml_file, 'r') as file:
+        return yaml.safe_load(file)
+
+
+# Load the YAML API documentation
+api_specs = load_yaml("api_description.yaml")
 
 app = FastAPI(
     title="SmartGridready Intermediary API",
@@ -19,6 +30,11 @@ interfaces = {}
 
 # Mount Swagger UI at /docs
 app.mount("/docs", StaticFiles(directory="swagger"), name="docs")
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def get_openapi_json():
+    return api_specs
 
 
 # Additional endpoint for serving OpenAPI schema
@@ -39,44 +55,6 @@ class InitializationResponse(BaseModel):
 @app.post("/instances", response_model=InitializationResponse, tags=["instances"],
           summary="Initialize a new instance of the Generic Interface.")
 async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
-    """
-    ## Initialize a new instance of the Generic Interface
-    
-    ### Request Body
-    
-    The request body should be a form-data object containing two files: an INI file and an XML file.
-    
-    #### Format:
-    
-    ```json
-    {
-        "xml": "<xml_file>",
-        "ini": "<ini_file>"
-    }
-    ```
-    
-    #### Response:
-    
-    The response will be a JSON object containing the status of the initialization and the instance id.
-    
-    #### Format:
-    
-    ```json
-    {
-        "status": "<status>",
-        "instance_id": "<instance_id>"
-    }
-    ```
-    
-    #### Example:
-    
-    ```json
-    {
-        "status": "success",
-        "instance_id": "1"
-    }
-    ```
-    """
     global instance_counter, interfaces
 
     ini_file_ext = os.path.splitext(ini.filename)[-1].lower()
@@ -132,53 +110,6 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
 # get initialized instances
 @app.get("/instances", response_model=Dict[str, Any], tags=["instances"], summary="get initialized instances")
 async def get_instances():
-    """
-    ## Retrieve initialized instances
-    
-    ### Response
-    
-    The response will be a JSON object where each key represents an instance id and its associated value is another JSON object detailing the instance's XML and INI paths.
-    
-    #### Format:
-    
-    ```json
-    
-    {
-        "<instance_id>": {
-            "instance_id": "<instance_id>",
-            "xml": "<xml_path>",
-            "ini": "<ini_path>"
-        },
-        "<instance_id>": {
-            "instance_id": "<instance_id>",
-            "xml": "<xml_path>",
-            "ini": "<ini_path>"
-        },
-        ...
-    }
-    
-    ```
-    
-    #### Example:
-    
-    ```json
-        
-        {
-            "1": {
-                "instance_id": "1",
-                "xml": "1.xml",
-                "ini": "1.ini"
-            },
-            "2": {
-                "instance_id": "2",
-                "xml": "2.xml",
-                "ini": "2.ini"
-            }
-        }
-        
-        ```
-        
-    """
     # return only the instance ids, xml and ini paths
     result = {
         key: {
@@ -193,29 +124,6 @@ async def get_instances():
 
 @app.delete("/instances/{instance_id}", tags=["instances"], summary="Delete an instance of the Generic Interface.")
 async def delete_instance(instance_id: str):
-    """
-    ## Delete an instance of the Generic Interface
-    
-    ### Request
-    
-    The request should contain the instance id of the instance to delete.
-    
-    #### Format:
-    
-    ```json
-    {
-        "instance_id": "<instance_id>"
-    }
-    ```
-    
-    #### Example:
-    
-    ```json
-    {
-        "instance_id": "1"
-    }
-    ```
-    """
     if instance_id not in interfaces:
         raise HTTPException(status_code=404, detail="Instance not found.")
 
@@ -263,53 +171,6 @@ async def get_data_point_value(instance_id, fpname, dpname):
 @app.post("/get", response_model=ResponseData, tags=["Generic Interface"],
           summary="Get values from the Generic Interface.")
 async def get_values(data: DataPayload):
-    """
-    ## Retrieve datapoint of specific functional profile 
-
-    ### Request Body
-
-    The request body should be a JSON object where each key represents an identifier and its associated value is another JSON object detailing metrics of interest.
-
-    #### Format:
-
-    ```json
-    {
-        "<instance_id>": {
-            "<fpname>": [
-                "<dpname>",
-                "<dpname>",
-                ...
-            ]
-        },
-        "<instance_id>": {
-            "<fpname>": [
-                "<dpname>",
-                "<dpname>",
-                ...
-            ]
-        },
-        ...
-    }
-    ```
-
-    #### Example:
-
-    ```json
-    {
-        "1": {
-            "ActivePowerAC": ["ActivePowerACtot", "ActivePowerACL1"]
-        },
-        "2": {
-            "ActivePowerAC": ["ActivePowerACtot"]
-        }
-    }
-    ```
-
-    ### Response
-
-    The response format and values will depend on the application's implementation and the data being requested. However, it's expected that the API will return relevant data or status messages based on the identifiers and metrics provided.
-
-    """
     result_dict, err_string = await process_data(data, get_data_point_value)
     status = err_string if err_string else 'success'
     return {'status': status, 'data': result_dict}
@@ -331,54 +192,6 @@ SetDataPayload = Dict[str, Dict[str, Dict[str, float]]]
 @app.post("/set", response_model=ResponseData, tags=["Generic Interface"],
           summary="Set values in the Generic Interface.")
 async def set_values(data: SetDataPayload):
-    """
-    ## Set values in the Generic Interface
-
-    ### Request Body
-
-    The request body should be a JSON object where each key represents an identifier and its associated value is another JSON object detailing metrics of interest.
-
-    #### Format:
-
-    ```json
-    {
-        "<instance_id>": {
-            "<fpname>": {
-                "<dpname>": <value>,
-                "<dpname>": <value>,
-                ...
-            }
-        },
-        "<instance_id>": {
-            "<fpname>": {
-                "<dpname>": <value>,
-                "<dpname>": <value>,
-                ...
-            }
-        },
-        ...
-    }
-    ```
-
-    #### Example:
-
-    ```json
-    {
-        "1": {
-            "ActivePowerAC": {
-                "ActivePowerACtot": 100,
-                "ActivePowerACL1": 50
-            }
-        },
-        "2": {
-            "ActivePowerAC": {
-                "ActivePowerACtot": 200
-            }
-        }
-    }
-    ```
-    """
-
     result_dict = {}
 
     err_string = ""
