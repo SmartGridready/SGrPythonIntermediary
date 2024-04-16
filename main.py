@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Optional, Dict, Any, List
 
@@ -27,6 +28,38 @@ app = FastAPI(
 
 instance_counter = 1
 interfaces = {}
+
+DataPayload = Dict[str, Dict[str, List[str]]]
+
+
+# This function processes the json datapoint data and returns the result dictionary and error string from it
+async def process_data(data, data_point_handler):
+    result_dict = {}
+    err_string = ""
+
+    for instance_id, fp_data in data.items():
+        if instance_id not in result_dict:
+            result_dict[instance_id] = {}
+
+        for fpname, dpnames in fp_data.items():
+            if fpname not in result_dict[instance_id]:
+                result_dict[instance_id][fpname] = {}
+
+            for dpname in dpnames:
+                try:
+                    val = await data_point_handler(instance_id, fpname, dpname)
+                    result_dict[instance_id][fpname][dpname] = val
+                except Exception as e:
+                    err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
+
+    return result_dict, err_string
+
+
+async def get_data_point_value(instance_id, fpname, dpname):
+    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
+    data_point = fp.get_data_point(dpname)
+    return await data_point.read()
+
 
 # Mount Swagger UI at /docs
 app.mount("/docs", StaticFiles(directory="swagger"), name="docs")
@@ -137,37 +170,6 @@ class ResponseData(BaseModel):
     data: Dict[str, Dict[str, Dict[str, float]]]
 
 
-DataPayload = Dict[str, Dict[str, List[str]]]
-
-
-async def process_data(data, data_point_handler):
-    result_dict = {}
-    err_string = ""
-
-    for instance_id, fp_data in data.items():
-        if instance_id not in result_dict:
-            result_dict[instance_id] = {}
-
-        for fpname, dpnames in fp_data.items():
-            if fpname not in result_dict[instance_id]:
-                result_dict[instance_id][fpname] = {}
-
-            for dpname in dpnames:
-                try:
-                    val = await data_point_handler(instance_id, fpname, dpname)
-                    result_dict[instance_id][fpname][dpname] = val
-                except Exception as e:
-                    err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
-
-    return result_dict, err_string
-
-
-async def get_data_point_value(instance_id, fpname, dpname):
-    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
-    data_point = fp.get_data_point(dpname)
-    return await data_point.read()
-
-
 @app.post("/get", response_model=ResponseData, tags=["Generic Interface"],
           summary="Get values from the Generic Interface.")
 async def get_values(data: DataPayload):
@@ -176,14 +178,25 @@ async def get_values(data: DataPayload):
     return {'status': status, 'data': result_dict}
 
 
-@app.websocket("/ws")
+@app.websocket("/subscribe")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    while True:
-        # json data
+    try:
         data = await websocket.receive_json()
-        result_dict, err_string = await process_data(data, get_data_point_value)
-        await websocket.send_json({'status': err_string if err_string else 'success', 'data': result_dict})
+        while True:
+            # Assume 'get_latest_data()' is a function that fetches the latest data
+
+            result_dict, err_string = await process_data(data, get_data_point_value)
+
+            # Sending the data to the client
+            await websocket.send_json({'status': err_string if err_string else 'success', 'data': result_dict})
+
+            # Wait for 10 seconds before fetching new data
+            await asyncio.sleep(10)
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        await websocket.close()
 
 
 SetDataPayload = Dict[str, Dict[str, Dict[str, float]]]
