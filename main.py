@@ -1,11 +1,14 @@
+import asyncio
 import os
-from typing import Optional, List, Dict, Any
+from typing import Dict, Any
 
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from starlette.websockets import WebSocket
 
+from config import load_yaml
+from models import ResponseData, InitializationResponse, SetDataPayload, DataPayload
 from sgr.sgr_library.sgr_device import SGrDevice
 
 app = FastAPI(
@@ -17,8 +20,35 @@ app = FastAPI(
 instance_counter = 1
 interfaces = {}
 
+# Load the YAML API documentation
+api_specs = load_yaml("api_description.yaml")
+
 # Mount Swagger UI at /docs
 app.mount("/docs", StaticFiles(directory="swagger"), name="docs")
+
+
+async def process_data(data):
+    result_dict = {}
+    err_string = ""
+
+    for instance_id, fp_data in data.items():
+        if instance_id not in result_dict:
+            result_dict[instance_id] = {}
+
+        for fpname, dpnames in fp_data.items():
+            if fpname not in result_dict[instance_id]:
+                result_dict[instance_id][fpname] = {}
+
+            for dpname in dpnames:
+                try:
+                    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
+                    data_point = fp.get_data_point(dpname)
+                    val = await data_point.read()
+                    result_dict[instance_id][fpname][dpname] = val
+                except Exception as e:
+                    err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
+
+    return result_dict, err_string
 
 
 # Additional endpoint for serving OpenAPI schema
@@ -31,52 +61,9 @@ if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)
 
 
-class InitializationResponse(BaseModel):
-    status: str
-    instance_id: Optional[str] = None
-
-
 @app.post("/instances", response_model=InitializationResponse, tags=["instances"],
           summary="Initialize a new instance of the Generic Interface.")
 async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
-    """
-    ## Initialize a new instance of the Generic Interface
-    
-    ### Request Body
-    
-    The request body should be a form-data object containing two files: an INI file and an XML file.
-    
-    #### Format:
-    
-    ```json
-    {
-        "xml": "<xml_file>",
-        "ini": "<ini_file>"
-    }
-    ```
-    
-    #### Response:
-    
-    The response will be a JSON object containing the status of the initialization and the instance id.
-    
-    #### Format:
-    
-    ```json
-    {
-        "status": "<status>",
-        "instance_id": "<instance_id>"
-    }
-    ```
-    
-    #### Example:
-    
-    ```json
-    {
-        "status": "success",
-        "instance_id": "1"
-    }
-    ```
-    """
     global instance_counter, interfaces
 
     ini_file_ext = os.path.splitext(ini.filename)[-1].lower()
@@ -132,53 +119,6 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
 # get initialized instances
 @app.get("/instances", response_model=Dict[str, Any], tags=["instances"], summary="get initialized instances")
 async def get_instances():
-    """
-    ## Retrieve initialized instances
-    
-    ### Response
-    
-    The response will be a JSON object where each key represents an instance id and its associated value is another JSON object detailing the instance's XML and INI paths.
-    
-    #### Format:
-    
-    ```json
-    
-    {
-        "<instance_id>": {
-            "instance_id": "<instance_id>",
-            "xml": "<xml_path>",
-            "ini": "<ini_path>"
-        },
-        "<instance_id>": {
-            "instance_id": "<instance_id>",
-            "xml": "<xml_path>",
-            "ini": "<ini_path>"
-        },
-        ...
-    }
-    
-    ```
-    
-    #### Example:
-    
-    ```json
-        
-        {
-            "1": {
-                "instance_id": "1",
-                "xml": "1.xml",
-                "ini": "1.ini"
-            },
-            "2": {
-                "instance_id": "2",
-                "xml": "2.xml",
-                "ini": "2.ini"
-            }
-        }
-        
-        ```
-        
-    """
     # return only the instance ids, xml and ini paths
     result = {
         key: {
@@ -191,64 +131,27 @@ async def get_instances():
     return result
 
 
-Datapoint = Dict[str, Dict[str, List[str]]]
+@app.delete("/instances/{instance_id}", tags=["instances"], summary="Delete an instance of the Generic Interface.")
+async def delete_instance(instance_id: str):
+    if instance_id not in interfaces:
+        raise HTTPException(status_code=404, detail="Instance not found.")
 
+    del interfaces[instance_id]
 
-class ResponseData(BaseModel):
-    status: str = Field(..., example="success")
-    data: Dict[str, Dict[str, Dict[str, float]]]
+    return {"status": "success"}
 
 
 @app.post("/get", response_model=ResponseData, tags=["Generic Interface"],
           summary="Get values from the Generic Interface.")
-async def get(data: Datapoint):
-    """
-    ## Retrieve datapoint of specific functional profile 
+async def get_values(data: DataPayload):
+    result_dict, err_string = await process_data(data)
+    status = err_string if err_string else 'success'
+    return {'status': status, 'data': result_dict}
 
-    ### Request Body
 
-    The request body should be a JSON object where each key represents an identifier and its associated value is another JSON object detailing metrics of interest.
-
-    #### Format:
-
-    ```json
-    {
-        "<instance_id>": {
-            "<fpname>": [
-                "<dpname>",
-                "<dpname>",
-                ...
-            ]
-        },
-        "<instance_id>": {
-            "<fpname>": [
-                "<dpname>",
-                "<dpname>",
-                ...
-            ]
-        },
-        ...
-    }
-    ```
-
-    #### Example:
-
-    ```json
-    {
-        "1": {
-            "ActivePowerAC": ["ActivePowerACtot", "ActivePowerACL1"]
-        },
-        "2": {
-            "ActivePowerAC": ["ActivePowerACtot"]
-        }
-    }
-    ```
-
-    ### Response
-
-    The response format and values will depend on the application's implementation and the data being requested. However, it's expected that the API will return relevant data or status messages based on the identifiers and metrics provided.
-
-    """
+@app.post("/set", response_model=ResponseData, tags=["Generic Interface"],
+          summary="Set values in the Generic Interface.")
+async def set_values(data: SetDataPayload):
     result_dict = {}
 
     err_string = ""
@@ -261,18 +164,36 @@ async def get(data: Datapoint):
             if fpname not in result_dict[instance_id]:
                 result_dict[instance_id][fpname] = {}
 
-            for dpname in dpnames:
-                # Your logic to retrieve the value for fpname and dpname
+            for dpname, value in dpnames.items():
+                # Logic to set the value for fpname and dpname
                 try:
-                    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
-                    data_point = fp.get_data_point(dpname)
-                    val = await data_point.read()
-                    result_dict[instance_id][fpname][dpname] = val
+                    print(f"Setting value for {instance_id}.{fpname}.{dpname}: {value}")
                 except Exception as e:
-                    err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
+                    err_string += f"Error setting value for {instance_id}.{fpname}.{dpname}: {e}\n"
 
     status = err_string if err_string else 'success'
     return {'status': status, 'data': result_dict}
+
+
+@app.websocket("/subscribe")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        data = await websocket.receive_json()
+        while True:
+            # Assume 'get_latest_data()' is a function that fetches the latest data
+
+            result_dict, err_string = await process_data(data)
+
+            # Sending the data to the client
+            await websocket.send_json({'status': err_string if err_string else 'success', 'data': result_dict})
+
+            # Wait for 10 seconds before fetching new data
+            await asyncio.sleep(10)
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        await websocket.close()
 
 
 if __name__ == "__main__":
