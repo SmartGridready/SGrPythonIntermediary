@@ -1,5 +1,5 @@
 import os
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -191,9 +191,6 @@ async def get_instances():
     return result
 
 
-Datapoint = Dict[str, Dict[str, List[str]]]
-
-
 @app.delete("/instances/{instance_id}", tags=["instances"], summary="Delete an instance of the Generic Interface.")
 async def delete_instance(instance_id: str):
     """
@@ -234,7 +231,7 @@ class ResponseData(BaseModel):
 
 @app.post("/get", response_model=ResponseData, tags=["Generic Interface"],
           summary="Get values from the Generic Interface.")
-async def get(data: Datapoint):
+async def get_values(data: Dict[str, Dict[str, List[str]]]):
     """
     ## Retrieve datapoint of specific functional profile 
 
@@ -303,6 +300,80 @@ async def get(data: Datapoint):
                     result_dict[instance_id][fpname][dpname] = val
                 except Exception as e:
                     err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
+
+    status = err_string if err_string else 'success'
+    return {'status': status, 'data': result_dict}
+
+
+@app.post("/set", response_model=ResponseData, tags=["Generic Interface"],
+          summary="Set values in the Generic Interface.")
+async def set_values(data: Dict[str, Dict[str, Dict[str, float]]]):
+    """
+    ## Set values in the Generic Interface
+
+    ### Request Body
+
+    The request body should be a JSON object where each key represents an identifier and its associated value is another JSON object detailing metrics of interest.
+
+    #### Format:
+
+    ```json
+    {
+        "<instance_id>": {
+            "<fpname>": {
+                "<dpname>": <value>,
+                "<dpname>": <value>,
+                ...
+            }
+        },
+        "<instance_id>": {
+            "<fpname>": {
+                "<dpname>": <value>,
+                "<dpname>": <value>,
+                ...
+            }
+        },
+        ...
+    }
+    ```
+
+    #### Example:
+
+    ```json
+    {
+        "1": {
+            "ActivePowerAC": {
+                "ActivePowerACtot": 100,
+                "ActivePowerACL1": 50
+            }
+        },
+        "2": {
+            "ActivePowerAC": {
+                "ActivePowerACtot": 200
+            }
+        }
+    }
+    ```
+    """
+
+    result_dict = {}
+
+    err_string = ""
+
+    for instance_id, fp_data in data.items():
+        if instance_id not in result_dict:
+            result_dict[instance_id] = {}
+
+        for fpname, dpnames in fp_data.items():
+            if fpname not in result_dict[instance_id]:
+                result_dict[instance_id][fpname] = {}
+
+            for dpname, value in dpnames.items():
+                # Logic to set the value for fpname and dpname
+                try:
+                    print(f"Setting value for {instance_id}.{fpname}.{dpname}: {value}")
+                except Exception as e:
+                    err_string += f"Error setting value for {instance_id}.{fpname}.{dpname}: {e}\n"
 
     status = err_string if err_string else 'success'
     return {'status': status, 'data': result_dict}
