@@ -168,8 +168,11 @@ async def set_values(data: SetDataPayload):
                 # Logic to set the value for fpname and dpname
                 try:
                     print(f"Setting value for {instance_id}.{fpname}.{dpname}: {value}")
+                    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
+                    data_point = fp.get_data_point(dpname)
+                    await data_point.write(value)
                 except Exception as e:
-                    err_string += f"Error setting value for {instance_id}.{fpname}.{dpname}: {e}\n"
+                    err_string += f"Error setting value for {instance_id}.{fpname}.{dpname}: {e}"
 
     status = err_string if err_string else 'success'
     return {'status': status, 'data': result_dict}
