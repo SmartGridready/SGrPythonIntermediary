@@ -9,7 +9,7 @@ from starlette.websockets import WebSocket
 
 from config import load_yaml
 from models import ResponseData, InitializationResponse, SetDataPayload, DataPayload
-from sgr.sgr_library.sgr_device import SGrDevice
+from sgr_commhandler.device_builder import DeviceBuilder
 
 app = FastAPI(
     title="SmartGridready Intermediary API",
@@ -43,7 +43,7 @@ async def process_data(data):
                 try:
                     fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
                     data_point = fp.get_data_point(dpname)
-                    val = await data_point.read()
+                    val = await data_point.get_val()
                     result_dict[instance_id][fpname][dpname] = val
                 except Exception as e:
                     err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
@@ -88,29 +88,18 @@ async def initialize(xml: UploadFile = File(...), ini: UploadFile = File(...)):
     if f"{instance_id}" not in interfaces:
         interfaces[f"{instance_id}"] = {}
 
-    interfaces[f"{instance_id}"]["generic_interface"] = SGrDevice()
+    # Build device interface (process EID XML and INI file)
+    dev_interface = DeviceBuilder().eid_path(xml_path).properties_path(ini_path).build()
+
+    interfaces[f"{instance_id}"]["generic_interface"] = dev_interface
     interfaces[f"{instance_id}"]["xml"] = xml_path
     interfaces[f"{instance_id}"]["ini"] = ini_path
-
-    # Processing the XML file
-    with open(xml_path, "r") as buffer:
-        xml_content = buffer.read()
-        print("XML Content:", xml_content)
-        # Process XML content here
-        interfaces[f"{instance_id}"]["generic_interface"].update_xml_spec(xml_content)
-
-    # Processing the INI file
-    with open(ini_path, "r") as buffer:
-        ini_content = buffer.read()
-        print("INI Content:", ini_content)
-        interfaces[f"{instance_id}"]["generic_interface"].update_config(ini_content)
-        # Process INI content here
 
     # Cleanup: Removing temporary files
     os.remove(ini_path)
     os.remove(xml_path)
 
-    await interfaces[f"{instance_id}"]["generic_interface"].connect()
+    await interfaces[f"{instance_id}"]["generic_interface"].connect_async()
 
     instance_counter += 1
     return InitializationResponse(status="success", instance_id=instance_id)

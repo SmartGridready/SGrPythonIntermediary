@@ -1,60 +1,46 @@
 # SGr-Intermediary
 
-## Getting Started
-
-First change directory to sgr
-
-```
-cd sgr
-```
-
-Download the submodule (after cloning the repo):
-
-``` 
-git submodule init
-git submodule update
-```
-
-or clone the repo manually:
-
-```
-git clone https://github.com/SmartGridready/SGrPython .
-```
-
 ## Running the intermediary
 
-### Docker:
+### Docker
 
+Note: You may need to install requirements first, as defined in _Local_.
+
+```bash
+docker compose up --build
 ``` 
-sudo docker compose up --build
-``` 
 
-### Local:
+### Local
 
-1. Install the requirements:
+1. Clone SGrPython repository
 
+Clone the repo manually, alongside `SGrIntermediary`:
+
+```bash
+git clone https://github.com/SmartGridready/SGrPython ../SGrPython
 ```
-pip install -r sgr/requirements.txt
-```
 
-```angular2html
-pip install -r requirements.txt
+2. Install the requirements:
+
+```bash
+pip install -e ../SGrPython/specification
+pip install -e ../SGrPython/commhandler
 ```
 
 ```bash
-pip install -e sgr
+pip install -r requirements.txt
 ```
 
-2. Run the intermediary:
+3. Run the intermediary:
 
-```
+```bash
 python3 -u main.py
 ```
 
 > [!NOTE]
 > The intermediary will be running on port 5000 either way.
 
-## Running the tests with postman
+## Running the tests with Postman
 
 1. Import the postman collection from the `Postman` folder.  
    2.1 Initialize 2 instances  

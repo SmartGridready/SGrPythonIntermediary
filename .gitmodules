@@ -1,3 +1,0 @@
-[submodule "sgr"]
-	path = sgr
-	url = git@github.com:SmartgridReady/SGrPython.git
