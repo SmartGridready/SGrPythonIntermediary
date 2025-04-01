@@ -41,9 +41,9 @@ async def process_data(data):
 
             for dpname in dpnames:
                 try:
-                    fp = interfaces[instance_id]["generic_interface"].get_function_profile(fpname)
+                    fp = interfaces[instance_id]["generic_interface"].get_functional_profile(fpname)
                     data_point = fp.get_data_point(dpname)
-                    val = await data_point.get_val()
+                    val = await data_point.get_value_async()
                     result_dict[instance_id][fpname][dpname] = val
                 except Exception as e:
                     err_string += f"Error getting value for {fpname}.{dpname}: {e}\n"
