@@ -7,34 +7,35 @@
 Note: You may need to install requirements first, as defined in _Local_.
 
 ```bash
-docker compose up --build
+docker compose up -d
 ``` 
 
 ### Local
 
-1. Clone SGrPython repository
+1. Clone or check out this repository.
 
-Clone the repo manually, alongside `SGrIntermediary`:
-
-```bash
-git clone https://github.com/SmartGridready/SGrPython ../SGrPython
-```
-
-2. Install the requirements:
+2. Create and activate virtual environment:
 
 ```bash
-pip install -e ../SGrPython/specification
-pip install -e ../SGrPython/commhandler
+python -m venv .venv
+
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+
+# Linux
+source .venv/bin/activate
 ```
+
+3. Install the requirements:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Run the intermediary:
+4. Run the intermediary:
 
 ```bash
-python3 -u main.py
+python main.py
 ```
 
 > [!NOTE]
@@ -42,10 +43,10 @@ python3 -u main.py
 
 ## Running the tests with Postman
 
-1. Import the postman collection from the `Postman` folder.  
-   2.1 Initialize 2 instances  
-   2.2 Now you can read/delete instances and their data  
-   2.3 Websockets can't be exported from postman, but here's a screenshot![img.png](img.png)
+1. Import the postman collection from the `Postman` folder.
+   2.1 Initialize 2 instances.
+   2.2 Now you can read/delete instances and their data.
+   2.3 Websockets can't be exported from postman, but here's a screenshot![img.png](img.png).
 
 ## API Documentation
 

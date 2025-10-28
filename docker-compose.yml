@@ -2,13 +2,10 @@
 #
 # SGr Intermediary
 #
-#
 ######################################################################################
 
-version: '3.8'
 services:
-
-  # Eclipse Mosquitto MQTT Broker
+  # Intermediary
   sgr-intermediary:
     build:
       context: ./
