@@ -11,6 +11,7 @@ from config import load_yaml
 from models import ResponseData, InitializationResponse, SetDataPayload, DataPayload
 from sgr_commhandler.device_builder import DeviceBuilder
 
+
 app = FastAPI(
     title="SmartGridready Intermediary API",
     description="This API is used to communicate with the SmartGridready Generic Interface.",
@@ -19,9 +20,6 @@ app = FastAPI(
 
 instance_counter = 1
 interfaces = {}
-
-# Load the YAML API documentation
-api_specs = load_yaml("api_description.yaml")
 
 # Mount Swagger UI at /docs
 app.mount("/docs", StaticFiles(directory="swagger"), name="docs")
@@ -55,10 +53,6 @@ async def process_data(data):
 @app.get("/openapi.json", include_in_schema=False)
 async def get_openapi_json():
     return app.openapi()
-
-
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)
 
 
 @app.post("/instances", response_model=InitializationResponse, tags=["instances"],
@@ -185,5 +179,6 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close()
 
 
+# entry point when running application
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)
