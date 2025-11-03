@@ -1,65 +1,52 @@
 # SGr-Intermediary
 
-## Getting Started
-
-First change directory to sgr
-
-```
-cd sgr
-```
-
-Download the submodule (after cloning the repo):
-
-``` 
-git submodule init
-git submodule update
-```
-
-or clone the repo manually:
-
-```
-git clone https://github.com/SmartGridready/SGrPython .
-```
-
 ## Running the intermediary
 
-### Docker:
+### Docker
 
+Note: You may need to install requirements first, as defined in _Local_.
+
+```bash
+docker compose up -d
 ``` 
-sudo docker compose up --build
-``` 
 
-### Local:
+### Local
 
-1. Install the requirements:
+1. Clone or check out this repository.
 
+2. Create and activate virtual environment:
+
+```bash
+python -m venv .venv
+
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+
+# Linux
+source .venv/bin/activate
 ```
-pip install -r sgr/requirements.txt
-```
 
-```angular2html
+3. Install the requirements:
+
+```bash
 pip install -r requirements.txt
 ```
 
+4. Run the intermediary:
+
 ```bash
-pip install -e sgr
-```
-
-2. Run the intermediary:
-
-```
-python3 -u main.py
+python main.py
 ```
 
 > [!NOTE]
 > The intermediary will be running on port 5000 either way.
 
-## Running the tests with postman
+## Running the tests with Postman
 
-1. Import the postman collection from the `Postman` folder.  
-   2.1 Initialize 2 instances  
-   2.2 Now you can read/delete instances and their data  
-   2.3 Websockets can't be exported from postman, but here's a screenshot![img.png](img.png)
+1. Import the postman collection from the `Postman` folder.
+   2.1 Initialize 2 instances.
+   2.2 Now you can read/delete instances and their data.
+   2.3 Websockets can't be exported from postman, but here's a screenshot![img.png](img.png).
 
 ## API Documentation
 
