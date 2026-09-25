@@ -39,7 +39,7 @@ python main.py
 ```
 
 > [!NOTE]
-> The intermediary will be running on port 5000 either way.
+> The intermediary will be running on port 8080 either way.
 
 ## Running the tests with Postman
 
@@ -50,4 +50,4 @@ python main.py
 
 ## API Documentation
 
-The API documentation can be found at `http://localhost:5000/docs` after running the intermediary.
+The API documentation can be found at `http://localhost:8080/docs` after running the intermediary.
