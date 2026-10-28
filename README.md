@@ -51,3 +51,11 @@ python main.py
 ## API Documentation
 
 The API documentation can be found at `http://localhost:8080/docs` after running the intermediary.
+
+## Disclaimer - Community Support
+
+This project is developed and maintained by the _SmartGridready_ community.
+Contributions to the code are encouraged and welcome.
+If you would like to contribute bugfixes or features, contact the maintainers.
+Please be aware that _SmartGridready_ does not provide commercial support,
+and the software is provided "as is" without warranty of any kind.
