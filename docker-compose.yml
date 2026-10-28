@@ -2,17 +2,14 @@
 #
 # SGr Intermediary
 #
-#
 ######################################################################################
 
-version: '3.8'
 services:
-
-  # Eclipse Mosquitto MQTT Broker
+  # Intermediary
   sgr-intermediary:
     build:
       context: ./
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "8080:8080"
     restart: unless-stopped
